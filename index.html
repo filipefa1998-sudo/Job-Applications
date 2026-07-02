@@ -206,6 +206,40 @@
     .btn-cancel:hover { color: var(--text-main); border-color: var(--text-muted); }
     .btn-save { background: var(--gold); color: #0a1520; border: none; border-radius: 7px; padding: 9px 24px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; }
     .btn-save:hover { background: var(--gold-light); }
+    /* ---------- Print / Save-as-PDF report ---------- */
+    #print-report { display: none; }
+    @media print {
+      @page { margin: 14mm 12mm; }
+      body > *:not(#print-report) { display: none !important; }
+      body { background: #fff !important; color: #16202c; display: block; }
+      #print-report { display: block !important; font-family: 'DM Sans', Arial, sans-serif; color: #16202c; }
+      #print-report .pr-head { border-bottom: 2.5px solid #c8941a; padding-bottom: 10px; margin-bottom: 6px; }
+      #print-report h1 { font-family: 'Playfair Display', Georgia, serif; font-size: 21pt; color: #0d1b2a; margin: 0; }
+      #print-report .pr-sub { font-size: 8.5pt; color: #5a6b7e; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 3px; }
+      #print-report .pr-meta { display: flex; justify-content: space-between; font-size: 8.5pt; color: #5a6b7e; margin: 8px 0 14px; }
+      #print-report .pr-stats { font-size: 9pt; color: #16202c; margin-bottom: 14px; }
+      #print-report .pr-stats b { color: #0d1b2a; }
+      #print-report table { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+      #print-report th {
+        text-align: left; font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.07em;
+        color: #8a6510; border-bottom: 1.5px solid #c8941a; padding: 5px 7px; cursor: default;
+      }
+      #print-report td { padding: 6px 7px; border-bottom: 0.75px solid #d8dde3; vertical-align: top; }
+      #print-report tr { page-break-inside: avoid; }
+      #print-report .pr-company { font-weight: 600; color: #0d1b2a; }
+      #print-report .pr-badge {
+        display: inline-block; border: 1px solid #999; border-radius: 9px;
+        padding: 1px 8px; font-size: 7.5pt; font-weight: 600; white-space: nowrap;
+      }
+      #print-report .prb-Saved        { color: #2f6ea8; border-color: #2f6ea8; }
+      #print-report .prb-Applied      { color: #8a6510; border-color: #a97e14; }
+      #print-report .prb-Interviewing { color: #157a52; border-color: #157a52; }
+      #print-report .prb-Rejected     { color: #b03a3a; border-color: #b03a3a; }
+      #print-report .prb-Offer        { color: #6d47a8; border-color: #6d47a8; }
+      #print-report .pr-notes { color: #44525f; }
+      #print-report .pr-link { color: #44525f; font-size: 7.5pt; word-break: break-all; }
+      #print-report .pr-footer { margin-top: 16px; padding-top: 8px; border-top: 0.75px solid #d8dde3; font-size: 7.5pt; color: #8a97a5; display: flex; justify-content: space-between; }
+    }
     @media (max-width: 600px) {
       .header, .toolbar, .footer { padding: 14px 16px; }
       .toolbar input { width: 100%; }
@@ -276,8 +310,13 @@
 
 <div class="footer">
   <span id="footer-count">Connecting…</span>
-  <button class="btn-export" onclick="exportCSV()">⬇ Export CSV</button>
+  <div style="display:flex; gap:8px;">
+    <button class="btn-export" onclick="printReport()">🖨 Print / Save PDF</button>
+    <button class="btn-export" onclick="exportCSV()">⬇ Export CSV</button>
+  </div>
 </div>
+
+<div id="print-report"></div>
 
 <div class="overlay" id="overlay" onclick="overlayClick(event)">
   <div class="modal">
@@ -460,7 +499,7 @@
         <td class="td-contact">${esc(j.contact||'—')}</td>
         <td class="td-date ${fu.cls}">${fu.text}</td>
         <td class="td-notes" title="${esc(j.notes||'')}">${esc(j.notes||'—')}</td>
-        <td>${j.link?`<a class="link-anchor" href="${esc(j.link)}" target="_blank" rel="noopener">View ↗</a>`:'—'}</td>
+        <td>${safeLink(j.link)?`<a class="link-anchor" href="${esc(safeLink(j.link))}" target="_blank" rel="noopener">View ↗</a>`:'—'}</td>
         <td>
           <button class="act-btn" onclick="openEdit('${j.id}')">✎</button>
           <button class="act-btn del" onclick="confirmDelete('${j.id}')">✕</button>
@@ -530,9 +569,68 @@
     );
     const csv = [headers,...rows].map(r=>r.join(',')).join('\n');
     const a = document.createElement('a');
-    a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+    a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent('\uFEFF'+csv); // BOM so Excel reads UTF-8 correctly
     a.download = 'job-pipeline-'+today()+'.csv';
     a.click();
+  }
+
+  // Only render links that are real http(s) URLs
+  function safeLink(u) { return /^https?:\/\//i.test(u||'') ? u : ''; }
+
+  function printReport() {
+    const total = Object.keys(jobs).length;
+    if (total === 0) { alert('Nothing to print yet — add an application first.'); return; }
+
+    const list = getList(); // respects current search / status filter / sort
+    const s = getStats();
+    const scope = list.length === total
+      ? `All applications (${total})`
+      : `Filtered view — ${list.length} of ${total}`
+        + (filterStatus ? ` · Status: ${filterStatus}` : '')
+        + (filterSearch ? ` · Search: “${esc(filterSearch)}”` : '');
+
+    const rowsHtml = list.map(j => {
+      const link = safeLink(j.link);
+      return `<tr>
+        <td class="pr-company">${esc(j.company||'—')}</td>
+        <td>${esc(j.position||'—')}</td>
+        <td>${j.dateApplied||'—'}</td>
+        <td><span class="pr-badge prb-${j.status}">${esc(j.status||'—')}</span></td>
+        <td>${esc(j.salary||'—')}</td>
+        <td>${esc(j.contact||'—')}</td>
+        <td>${j.followup||'—'}</td>
+        <td class="pr-notes">${esc(j.notes||'—')}</td>
+        <td class="pr-link">${link ? esc(link) : '—'}</td>
+      </tr>`;
+    }).join('');
+
+    document.getElementById('print-report').innerHTML = `
+      <div class="pr-head">
+        <h1>Job Pipeline Report</h1>
+        <div class="pr-sub">Track · Follow Up · Close the Offer</div>
+      </div>
+      <div class="pr-meta">
+        <span>${scope}</span>
+        <span>Generated ${new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}</span>
+      </div>
+      <div class="pr-stats">
+        <b>${s['Saved']}</b> Saved &nbsp;·&nbsp; <b>${s['Applied']}</b> Applied &nbsp;·&nbsp;
+        <b>${s['Interviewing']}</b> Interviewing &nbsp;·&nbsp; <b>${s['Offer']}</b> Offer${s['Offer']!==1?'s':''} &nbsp;·&nbsp;
+        <b>${s['Rejected']}</b> Rejected
+      </div>
+      <table>
+        <thead><tr>
+          <th>Company</th><th>Position</th><th>Date Applied</th><th>Status</th>
+          <th>Salary Range</th><th>Contact</th><th>Follow-up</th><th>Notes</th><th>Posting</th>
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+      <div class="pr-footer">
+        <span>Job Pipeline Tracker</span>
+        <span>${list.length} record${list.length!==1?'s':''} printed</span>
+      </div>`;
+
+    window.print();
   }
 </script>
 </body>

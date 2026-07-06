@@ -32,6 +32,7 @@
       --green:       #1e8e63;
       --blue:        #2f6ea8;
       --purple:      #6d47a8;
+      --teal:        #17808f;
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -130,6 +131,7 @@
     .p-pill .label { color: var(--text-muted); }
     .dot-saved        { background: var(--blue); }
     .dot-applied      { background: var(--gold-light); }
+    .dot-viewed       { background: var(--teal); }
     .dot-interviewing { background: var(--green); }
     .dot-rejected     { background: var(--red); }
     .dot-offer        { background: var(--purple); }
@@ -211,6 +213,7 @@
     }
     .badge-Saved        { background: rgba(47,110,168,0.08);  color: var(--blue);   border-color: rgba(47,110,168,0.35); }
     .badge-Applied      { background: var(--gold-dim);        color: var(--gold-deep); border-color: var(--gold-border); }
+    .badge-Application-Viewed { background: rgba(23,128,143,0.08); color: var(--teal); border-color: rgba(23,128,143,0.35); }
     .badge-Interviewing { background: rgba(30,142,99,0.08);   color: var(--green);  border-color: rgba(30,142,99,0.35); }
     .badge-Rejected     { background: rgba(192,57,43,0.07);   color: var(--red);    border-color: rgba(192,57,43,0.3); }
     .badge-Offer        { background: rgba(109,71,168,0.08);  color: var(--purple); border-color: rgba(109,71,168,0.35); }
@@ -298,6 +301,7 @@
       }
       #print-report .prb-Saved        { color: #2f6ea8; border-color: #2f6ea8; }
       #print-report .prb-Applied      { color: #8a6510; border-color: #a97e14; }
+      #print-report .prb-Application-Viewed { color: #17808f; border-color: #17808f; }
       #print-report .prb-Interviewing { color: #157a52; border-color: #157a52; }
       #print-report .prb-Rejected     { color: #b03a3a; border-color: #b03a3a; }
       #print-report .prb-Offer        { color: #6d47a8; border-color: #6d47a8; }
@@ -379,6 +383,7 @@
   <select id="status-filter" onchange="applyFilter()">
     <option value="">All Statuses</option>
     <option>Saved</option><option>Applied</option>
+    <option>Application Viewed</option>
     <option>Interviewing</option><option>Rejected</option><option>Offer</option>
   </select>
   <select id="industry-filter" onchange="applyFilter()">
@@ -444,6 +449,7 @@
         <div class="form-field"><label>Status</label>
           <select id="f-status">
             <option>Saved</option><option>Applied</option>
+            <option>Application Viewed</option>
             <option>Interviewing</option><option>Rejected</option><option>Offer</option>
           </select>
         </div>
@@ -473,13 +479,13 @@
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 <script>
   firebase.initializeApp({
-    apiKey:            "AIzaSyBIl_-DwA6pqkkNGhn-p2vlU0LlhaMFfUs",
-    authDomain:        "job-pipeline-tracker.firebaseapp.com",
-    projectId:         "job-pipeline-tracker",
-    storageBucket:     "job-pipeline-tracker.firebasestorage.app",
-    messagingSenderId: "154071018332",
-    appId:             "1:154071018332:web:a1eefc2e38524b3f63ef99",
-    databaseURL:       "https://job-pipeline-tracker-default-rtdb.firebaseio.com"
+    apiKey:            "AIzaSyBjFq_iD0wrLqgzbiAgd1zbPEkf-kvYawE",
+    authDomain:        "perfect-service-os.firebaseapp.com",
+    projectId:         "perfect-service-os",
+    storageBucket:     "perfect-service-os.firebasestorage.app",
+    messagingSenderId: "7540754161",
+    appId:             "1:7540754161:web:56bd56999da60d7f8d8b50",
+    databaseURL:       "https://perfect-service-os-default-rtdb.firebaseio.com"
   });
 
   const db  = firebase.database();
@@ -501,7 +507,8 @@
     settingsRef.set({ weeklyGoal: n }).catch(() => setSyncStatus('error', 'Goal save failed'));
   }
 
-  const STATUSES = ['Saved','Applied','Interviewing','Rejected','Offer'];
+  const STATUSES = ['Saved','Applied','Application Viewed','Interviewing','Rejected','Offer'];
+  function statusClass(s) { return (s||'').replace(/\s+/g,'-'); } // 'Application Viewed' -> 'Application-Viewed' for CSS classes
 
   // ---------- Industry classification ----------
   const INDUSTRIES = [
@@ -643,6 +650,7 @@
     const interviews = all.filter(j => j.status === 'Interviewing' || j.status === 'Offer');
     const offers     = all.filter(j => j.status === 'Offer');
     const responded  = all.filter(j => ['Interviewing','Offer','Rejected'].includes(j.status));
+    const viewed     = all.filter(j => j.status === 'Application Viewed').length;
     const ws = weekStartISO();
     const weekCount = applied.filter(j => j.dateApplied && j.dateApplied >= ws).length;
 
@@ -667,7 +675,7 @@
       .slice(0, 4);
 
     return { applied: applied.length, interviews: interviews.length, offers: offers.length,
-             responded: responded.length, weekCount, avgAge, signal };
+             responded: responded.length, viewed, weekCount, avgAge, signal };
   }
 
   function renderDash() {
@@ -700,7 +708,7 @@
       <div class="dash-card">
         <h3>Response Rate</h3>
         <div class="dash-big">${pct(ins.responded, ins.applied)}</div>
-        <div class="dash-sub">${ins.responded} of ${ins.applied} heard back${ins.avgAge !== null ? ' · open apps waiting ' + ins.avgAge + 'd avg' : ''}</div>
+        <div class="dash-sub">${ins.responded} of ${ins.applied} heard back${ins.viewed ? ' · ' + ins.viewed + ' viewed' : ''}${ins.avgAge !== null ? ' · open apps waiting ' + ins.avgAge + 'd avg' : ''}</div>
       </div>
       <div class="dash-card">
         <h3>Industry Signal</h3>
@@ -722,7 +730,7 @@
       <span class="chip chip-purple">${s['Offer']} Offer${s['Offer']!==1?'s':''}</span>`;
 
     // pipeline pills
-    const dotMap = { Saved:'dot-saved', Applied:'dot-applied', Interviewing:'dot-interviewing', Rejected:'dot-rejected', Offer:'dot-offer' };
+    const dotMap = { Saved:'dot-saved', Applied:'dot-applied', 'Application Viewed':'dot-viewed', Interviewing:'dot-interviewing', Rejected:'dot-rejected', Offer:'dot-offer' };
     document.getElementById('pipeline-bar').innerHTML = STATUSES.map(st => `
       <div class="p-pill ${filterStatus===st?'active':''}" onclick="toggleStatus('${st}')">
         <span class="dot ${dotMap[st]}"></span>
@@ -757,7 +765,7 @@
         <td class="td-position" data-label="Position">${esc(j.position||'—')}</td>
         <td data-label="Industry"><span class="ind-tag">${esc(jobIndustry(j))}</span></td>
         <td class="td-date" data-label="Applied">${j.dateApplied||'—'}</td>
-        <td data-label="Status"><span class="badge badge-${j.status}">${j.status}</span></td>
+        <td data-label="Status"><span class="badge badge-${statusClass(j.status)}">${j.status}</span></td>
         <td class="td-salary${j.salary?'':' td-hide-empty'}" data-label="Salary">${esc(j.salary||'—')}</td>
         <td class="td-contact${j.contact?'':' td-hide-empty'}" data-label="Contact">${esc(j.contact||'—')}</td>
         <td class="td-date${j.followup?'':' td-hide-empty'} ${fu.cls}" data-label="Follow-up">${fu.text}</td>
@@ -864,7 +872,7 @@
         <td class="pr-company">${esc(j.company||'—')}<div class="pr-ind">${esc(jobIndustry(j))}</div></td>
         <td>${esc(j.position||'—')}</td>
         <td>${j.dateApplied||'—'}</td>
-        <td><span class="pr-badge prb-${j.status}">${esc(j.status||'—')}</span></td>
+        <td><span class="pr-badge prb-${statusClass(j.status)}">${esc(j.status||'—')}</span></td>
         <td>${esc(j.salary||'—')}</td>
         <td>${esc(j.contact||'—')}</td>
         <td>${j.followup||'—'}</td>
@@ -889,6 +897,7 @@
       </div>
       <div class="pr-stats">
         <b>${s['Saved']}</b> Saved &nbsp;·&nbsp; <b>${s['Applied']}</b> Applied &nbsp;·&nbsp;
+        <b>${s['Application Viewed']}</b> Viewed &nbsp;·&nbsp;
         <b>${s['Interviewing']}</b> Interviewing &nbsp;·&nbsp; <b>${s['Offer']}</b> Offer${s['Offer']!==1?'s':''} &nbsp;·&nbsp;
         <b>${s['Rejected']}</b> Rejected
       </div>
